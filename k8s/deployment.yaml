@@ -28,7 +28,7 @@ spec:
         - name: customer-service
           # Imagen publicada por CI en cada push a main
           # Reemplazar OWNER con el usuario/org de GitHub, o usar sha-XXXXXXX para un deploy concreto
-          image: ghcr.io/OWNER/reactive-customer-service:latest
+          image: ghcr.io/apchavez/reactive-customer-service:latest
           imagePullPolicy: Always
           ports:
             - name: http
