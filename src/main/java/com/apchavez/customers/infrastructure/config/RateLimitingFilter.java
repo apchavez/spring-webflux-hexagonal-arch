@@ -1,8 +1,9 @@
 package com.apchavez.customers.infrastructure.config;
 
-import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -13,12 +14,8 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class RateLimitingFilter implements WebFilter {
@@ -26,70 +23,63 @@ public class RateLimitingFilter implements WebFilter {
     private static final Logger log = LoggerFactory.getLogger(RateLimitingFilter.class);
 
     static final int MAX_REQUESTS = 100;
-    private static final long WINDOW_MILLIS = 60_000L;
+    private static final int WINDOW_SECONDS = 60;
+    private static final String KEY_PREFIX = "rl:";
     private static final String TARGET_PATH_PREFIX = "/api/v1/customers";
     private static final Set<HttpMethod> TARGET_METHODS =
             Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE);
 
-    private final ConcurrentHashMap<String, AtomicInteger> windowCounts = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    // Atomic fixed-window: INCR then set TTL only on first call to avoid resetting the window.
+    // Keys auto-expire in Redis so no manual cleanup thread is needed.
+    private static final RedisScript<Long> RATE_LIMIT_SCRIPT = RedisScript.of("""
+            local current = redis.call('INCR', KEYS[1])
+            if current == 1 then
+                redis.call('EXPIRE', KEYS[1], ARGV[1])
+            end
+            return current
+            """, Long.class);
 
-    public RateLimitingFilter() {
-        scheduler.scheduleAtFixedRate(
-                this::purgeOldWindows, WINDOW_MILLIS, WINDOW_MILLIS, TimeUnit.MILLISECONDS);
-    }
+    private final ReactiveStringRedisTemplate redisTemplate;
 
-    @PreDestroy
-    public void shutdown() {
-        scheduler.shutdownNow();
-    }
-
-    private void purgeOldWindows() {
-        long currentWindow = System.currentTimeMillis() / WINDOW_MILLIS;
-        windowCounts.keySet().removeIf(key -> {
-            int colonIdx = key.lastIndexOf(':');
-            try {
-                return Long.parseLong(key.substring(colonIdx + 1)) < currentWindow;
-            } catch (NumberFormatException e) {
-                return true;
-            }
-        });
+    public RateLimitingFilter(ReactiveStringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
-
-        if (!TARGET_METHODS.contains(request.getMethod()) ||
-                !request.getPath().value().startsWith(TARGET_PATH_PREFIX)) {
+        if (!TARGET_METHODS.contains(request.getMethod())
+                || !request.getPath().value().startsWith(TARGET_PATH_PREFIX)) {
             return chain.filter(exchange);
         }
 
         String ip = extractClientIp(request);
-        long currentWindow = System.currentTimeMillis() / WINDOW_MILLIS;
-        String windowKey = ip + ":" + currentWindow;
+        long bucket = System.currentTimeMillis() / (WINDOW_SECONDS * 1000L);
+        String key = KEY_PREFIX + ip + ":" + bucket;
 
-        AtomicInteger count = windowCounts.computeIfAbsent(windowKey, k -> new AtomicInteger(0));
-        int current = count.incrementAndGet();
-
-        if (current > MAX_REQUESTS) {
-            long windowStart = currentWindow * WINDOW_MILLIS;
-            long retryAfter = (WINDOW_MILLIS - (System.currentTimeMillis() - windowStart)) / 1000 + 1;
-            log.warn("[RATE-LIMIT] IP '{}' bloqueada — solicitud #{} en ventana {} ({} {})",
-                    ip, current, currentWindow, request.getMethod(), request.getPath());
-            exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
-            exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(retryAfter));
-            return exchange.getResponse().setComplete();
-        }
-
-        return chain.filter(exchange);
+        return redisTemplate.execute(RATE_LIMIT_SCRIPT, List.of(key), List.of(String.valueOf(WINDOW_SECONDS)))
+                .next()
+                .flatMap(count -> {
+                    if (count > MAX_REQUESTS) {
+                        log.warn("[RATE-LIMIT] IP '{}' bloqueada — solicitud #{} ({} {})",
+                                ip, count, request.getMethod(), request.getPath());
+                        exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
+                        exchange.getResponse().getHeaders().set("Retry-After", String.valueOf(WINDOW_SECONDS));
+                        return exchange.getResponse().setComplete();
+                    }
+                    return chain.filter(exchange);
+                })
+                .onErrorResume(ex -> {
+                    // Redis unavailable: fail-open to avoid blocking legitimate traffic.
+                    log.warn("[RATE-LIMIT] Redis no disponible (fail-open) — IP '{}': {}", ip, ex.getMessage());
+                    return chain.filter(exchange);
+                });
     }
 
     private String extractClientIp(ServerHttpRequest request) {
         String forwarded = request.getHeaders().getFirst("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            // Take the rightmost non-blank segment — added by trusted infrastructure (last hop).
-            // The leftmost segment is client-provided and can be spoofed.
+            // Rightmost IP is added by trusted infrastructure; leftmost can be spoofed.
             String[] parts = forwarded.split(",");
             for (int i = parts.length - 1; i >= 0; i--) {
                 String ip = parts[i].trim();

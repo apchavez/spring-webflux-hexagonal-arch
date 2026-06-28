@@ -1,5 +1,17 @@
 services:
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
   db:
     image: postgres:16-alpine
     environment:
@@ -29,8 +41,12 @@ services:
       DB_NAME: ${DB_NAME:-customerdb}
       DB_USER: ${DB_USER:-customer_user}
       DB_PASSWORD: ${DB_PASSWORD:-customer_pass}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app_network
