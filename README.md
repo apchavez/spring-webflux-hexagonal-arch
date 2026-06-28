@@ -76,7 +76,7 @@ Base path: `/api/v1/customers`
 
 | Método | Ruta | Descripción | Respuestas |
 |---|---|---|---|
-| `POST` | `/` | Crear cliente | `201`, `400`, `409`, `422` |
+| `POST` | `/` | Crear cliente | `201`, `400`, `422` |
 | `GET` | `/active` | Listar clientes activos | `200` |
 | `GET` | `/{id}` | Buscar por ID | `200`, `404` |
 | `PUT` | `/{id}` | Actualizar cliente completo | `200`, `400`, `404`, `422` |
