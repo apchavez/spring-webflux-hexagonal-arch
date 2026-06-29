@@ -1,40 +1,42 @@
-# Reactive Customer Service API
-
 [![CI](https://github.com/apchavez/reactive-customer-service/actions/workflows/ci.yml/badge.svg)](https://github.com/apchavez/reactive-customer-service/actions/workflows/ci.yml)
 
-API REST reactiva desarrollada con **Spring Boot WebFlux** para gestionar clientes (CRUD completo) siguiendo **arquitectura hexagonal (Ports & Adapters)**.
+# Reactive Customer Service API
 
-## Tecnologías
+Reactive REST API built with **Spring Boot WebFlux** for full CRUD customer management, following **Hexagonal Architecture (Ports & Adapters)**.
 
-| Categoría | Tecnología |
+---
+
+## Tech Stack
+
+| Category | Technology |
 |---|---|
-| Lenguaje / Runtime | Java 21, Spring Boot 3.5.3 |
-| Reactividad | Spring WebFlux (Mono / Flux), Spring Data R2DBC |
-| Base de datos | H2 (perfil dev) / PostgreSQL 16 (perfil prod) |
-| Seguridad | Spring Security (headers, CORS, rate limiting) |
-| Observabilidad | Spring Boot Actuator, SLF4J + Logback, X-Request-Id |
-| Documentación API | Springdoc OpenAPI 2 (Swagger UI) |
-| Build | Gradle 8, JaCoCo (cobertura ≥ 80 % en dominio y aplicación) |
-| Calidad de código | ArchUnit, SonarQube |
-| Contenerización | Docker (multistage build) + docker-compose |
-| Orquestación | Kubernetes (manifests en `k8s/`) |
+| Language / Runtime | Java 21, Spring Boot 3.5.3 |
+| Reactivity | Spring WebFlux (Mono / Flux), Spring Data R2DBC |
+| Database | H2 (dev profile) / PostgreSQL 16 (prod profile) |
+| Security | Spring Security (headers, CORS, rate limiting) |
+| Observability | Spring Boot Actuator, SLF4J + Logback, X-Request-Id |
+| API Docs | Springdoc OpenAPI 2 (Swagger UI) |
+| Build | Gradle 8, JaCoCo (≥ 80% on domain and application) |
+| Code quality | ArchUnit, SonarQube |
+| Containerization | Docker (multistage build) + docker-compose |
+| Orchestration | Kubernetes (manifests in `k8s/`) |
 | CI/CD | GitHub Actions → ghcr.io |
 
 ---
 
-## Arquitectura
+## Architecture
 
-Hexagonal (Ports & Adapters) con tres capas bien delimitadas:
+Hexagonal (Ports & Adapters) with three well-defined layers:
 
 ```
 src/main/java/com/apchavez/customers
 ├── domain
-│   ├── model          Customer (record con invariantes), CustomerState
-│   ├── exception      Excepciones de dominio tipadas
-│   ├── port           CustomerRepositoryPort (interfaz — el contrato)
-│   └── service        CustomerDomainService (lógica de negocio pura)
+│   ├── model          Customer (record with invariants), CustomerState
+│   ├── exception      Typed domain exceptions
+│   ├── port           CustomerRepositoryPort (interface — the contract)
+│   └── service        CustomerDomainService (pure business logic)
 ├── application
-│   └── CustomerApplicationService  (orquestación, logging de auditoría, @Transactional)
+│   └── CustomerApplicationService  (orchestration, audit logging, @Transactional)
 └── infrastructure
     ├── config         Security, RateLimiting, RequestLogging, OpenApi, Startup
     ├── mapper         CustomerMapper (DTO ↔ Domain ↔ Entity)
@@ -42,12 +44,14 @@ src/main/java/com/apchavez/customers
     └── web            CustomerController, DTOs (Request/Update/Response), GlobalExceptionHandler
 ```
 
-**Regla de dependencias:** `infrastructure` → `application` → `domain`  
-El dominio no conoce las capas externas. Verificado automáticamente por `ArchitectureTest` (ArchUnit).
+**Dependency rule:** `infrastructure` → `application` → `domain`  
+The domain has no knowledge of outer layers. Verified automatically by `ArchitectureTest` (ArchUnit).
 
 ---
 
-## Ejecutar localmente (H2 en memoria)
+## Getting Started
+
+### Local (H2 in-memory)
 
 ```bash
 ./gradlew bootRun
@@ -56,123 +60,123 @@ El dominio no conoce las capas externas. Verificado automáticamente por `Archit
 - App: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-## Ejecutar con Docker (PostgreSQL)
+### Docker (PostgreSQL)
 
 ```bash
-# Opcional: personalizar credenciales
+# Optional: customize credentials
 cp .env.example .env
-# editar .env con los valores deseados
+# edit .env with your values
 
 docker compose up --build
 ```
 
-> El script `docker/postgres-init.sql` inicializa el schema de PostgreSQL automáticamente en el primer arranque.
+> The `docker/postgres-init.sql` script initializes the PostgreSQL schema automatically on first startup.
 
 ---
 
-## Endpoints
+## API Endpoints
 
 Base path: `/api/v1/customers`
 
-| Método | Ruta | Descripción | Respuestas |
+| Method | Route | Description | Responses |
 |---|---|---|---|
-| `POST` | `/` | Crear cliente | `201`, `400`, `422` |
-| `GET` | `/active` | Listar clientes activos | `200` |
-| `GET` | `/{id}` | Buscar por ID | `200`, `404` |
-| `PUT` | `/{id}` | Actualizar cliente completo | `200`, `400`, `404`, `422` |
-| `DELETE` | `/{id}` | Eliminar cliente | `204`, `404` |
+| `POST` | `/` | Create customer | `201`, `400`, `422` |
+| `GET` | `/active` | List active customers | `200` |
+| `GET` | `/{id}` | Find by ID | `200`, `404` |
+| `PUT` | `/{id}` | Full update | `200`, `400`, `404`, `422` |
+| `DELETE` | `/{id}` | Delete customer | `204`, `404` |
 
-La documentación interactiva completa (con ejemplos de request/response y todos los códigos de error) está disponible en Swagger UI.
+Full interactive documentation (with request/response examples and all error codes) is available in Swagger UI.
 
-### Ejemplos rápidos
+### Quick Examples
 
 ```bash
-# Crear cliente
+# Create customer
 curl -X POST http://localhost:8080/api/v1/customers \
   -H "Content-Type: application/json" \
   -d '{"nombre":"Alex","apellido":"Prieto","estado":"ACTIVE","edad":30}'
 
-# Listar activos
+# List active
 curl http://localhost:8080/api/v1/customers/active
 
-# Buscar por ID
+# Find by ID
 curl http://localhost:8080/api/v1/customers/1
 
-# Actualizar
+# Update
 curl -X PUT http://localhost:8080/api/v1/customers/1 \
   -H "Content-Type: application/json" \
   -d '{"nombre":"Alexander","apellido":"Prieto Chavez","estado":"INACTIVE","edad":31}'
 
-# Eliminar
+# Delete
 curl -X DELETE http://localhost:8080/api/v1/customers/1
 ```
 
 ---
 
-## Tests
+## Testing
 
 ```bash
-./gradlew test          # ejecuta todos los tests + JaCoCo
+./gradlew test          # runs all tests + JaCoCo
 ```
 
-| Tipo | Clase | Descripción |
+| Type | Class | Description |
 |---|---|---|
-| Modelo de dominio — unit + property-based (jqwik) | `CustomerDomainTest` | Invariantes del record `Customer` |
-| Serialización JSON — property-based | `CustomerResponseDTOSerializationTest` | Round-trip sin pérdida de datos |
-| Servicio de dominio — unit | `CustomerDomainServiceTest` | Lógica de negocio (create/find/update/delete) |
-| Servicio de aplicación — unit | `CustomerApplicationServiceTest` | Orquestación de casos de uso |
-| Adaptador de persistencia — `@DataR2dbcTest` | `CustomerPersistenceAdapterTest` | Puerto de persistencia con H2 real |
-| Controlador REST — integración completa | `CustomerControllerIntegrationTest` | Todos los endpoints y códigos de respuesta |
-| Rate limiter — unit | `RateLimitingFilterTest` | Límite por IP y aislamiento entre IPs |
+| Domain model — unit + property-based (jqwik) | `CustomerDomainTest` | `Customer` record invariants |
+| JSON serialization — property-based | `CustomerResponseDTOSerializationTest` | Round-trip without data loss |
+| Domain service — unit | `CustomerDomainServiceTest` | Business logic (create/find/update/delete) |
+| Application service — unit | `CustomerApplicationServiceTest` | Use case orchestration |
+| Persistence adapter — `@DataR2dbcTest` | `CustomerPersistenceAdapterTest` | Persistence port with real H2 |
+| REST controller — full integration | `CustomerControllerIntegrationTest` | All endpoints and response codes |
+| Rate limiter — unit | `RateLimitingFilterTest` | Per-IP limit and IP isolation |
 | Actuator probes | `ActuatorHealthTest` | Liveness/Readiness |
-| Arquitectura hexagonal — ArchUnit | `ArchitectureTest` | 4 reglas de dependencia |
+| Hexagonal architecture — ArchUnit | `ArchitectureTest` | 4 dependency rules enforced |
 
 ---
 
 ## CI/CD
 
-El pipeline de GitHub Actions (`.github/workflows/ci.yml`) ejecuta tres jobs en cada push:
+The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs three jobs on every push:
 
-| Job | Disparador | Qué hace |
+| Job | Trigger | What it does |
 |---|---|---|
-| `test` | Todo push / PR | Compila, ejecuta tests, JaCoCo ≥ 80 %, análisis SonarQube (si `SONAR_HOST_URL` está configurado) |
-| `k8s-validate` | Todo push / PR | Valida los manifests con **kubeconform** |
-| `docker` | Push a `main` (tras `test`) | Build + push a **ghcr.io** con tags `latest` y `sha-XXXXXXX` |
+| `test` | Every push / PR | Compile, run tests, JaCoCo ≥ 80%, SonarQube analysis (if `SONAR_HOST_URL` is configured) |
+| `k8s-validate` | Every push / PR | Validate manifests with **kubeconform** |
+| `docker` | Push to `main` (after `test`) | Build + push to **ghcr.io** with `latest` and `sha-XXXXXXX` tags |
 
-La imagen publicada queda disponible en:
+Published image:
 
 ```
 ghcr.io/apchavez/reactive-customer-service:latest
 ghcr.io/apchavez/reactive-customer-service:sha-abc1234
 ```
 
-### SonarQube (opcional)
+### SonarQube (optional)
 
-Para activar el análisis de SonarQube en CI, configurar en el repositorio de GitHub:
-- **Secret:** `SONAR_TOKEN` — token generado en tu instancia de SonarQube
-- **Variable:** `SONAR_HOST_URL` — URL de la instancia (e.g. `https://sonarcloud.io`)
+To enable SonarQube analysis in CI, configure in the GitHub repository:
+- **Secret:** `SONAR_TOKEN` — token generated in your SonarQube instance
+- **Variable:** `SONAR_HOST_URL` — instance URL (e.g. `https://sonarcloud.io`)
 
-Localmente:
+Locally:
 ```bash
-./gradlew sonar -Dsonar.host.url=https://sonarcloud.io -Dsonar.token=TU_TOKEN
+./gradlew sonar -Dsonar.host.url=https://sonarcloud.io -Dsonar.token=YOUR_TOKEN
 ```
 
 ---
 
 ## Kubernetes
 
-Los manifests en `k8s/` están preparados para producción:
+The manifests in `k8s/` are production-ready:
 
-| Archivo | Descripción |
+| File | Description |
 |---|---|
-| `namespace.yaml` | Namespace `customer-service` |
-| `configmap.yaml` | Configuración no sensible (perfil, host DB) |
-| `secret.yaml` | Credenciales de base de datos (base64) |
-| `deployment.yaml` | 2 réplicas, imagen ghcr.io, probes, resource limits, securityContext |
-| `service.yaml` | ClusterIP en puerto 80 |
-| `ingress.yaml` | NGINX Ingress en `customer-service.local` |
+| `namespace.yaml` | `customer-service` namespace |
+| `configmap.yaml` | Non-sensitive configuration (profile, DB host) |
+| `secret.yaml` | Database credentials (base64) |
+| `deployment.yaml` | 2 replicas, ghcr.io image, probes, resource limits, securityContext |
+| `service.yaml` | ClusterIP on port 80 |
+| `ingress.yaml` | NGINX Ingress at `customer-service.local` |
 
-Aplicar los manifests en orden:
+Apply in order:
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
@@ -183,28 +187,39 @@ kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/ingress.yaml
 ```
 
-Los probes de Kubernetes apuntan a los endpoints de Actuator:
+Kubernetes probes point to Actuator endpoints:
 - **Liveness:** `GET /actuator/health/liveness`
 - **Readiness:** `GET /actuator/health/readiness`
 
-> Actualizar `k8s/secret.yaml` con las credenciales reales antes de desplegar en producción.  
-> El Ingress asume un NGINX Ingress Controller y el host `customer-service.local`.
+> Update `k8s/secret.yaml` with real credentials before deploying to production.  
+> The Ingress assumes an NGINX Ingress Controller and host `customer-service.local`.
 
 ---
 
 ## Postman
 
-Los archivos están en la carpeta `postman/`.
-
-| Archivo | Propósito |
+| File | Purpose |
 |---|---|
-| `reactive-customer-service.postman_collection.json` | Colección principal con test scripts automáticos |
-| `reactive-customer-service.local.postman_environment.json` | Environment local — `baseUrl = http://localhost:8080` |
-| `reactive-customer-service.k8s.postman_environment.json` | Environment Kubernetes — `baseUrl = http://customer-service.local` |
+| `reactive-customer-service.postman_collection.json` | Main collection with automatic test scripts |
+| `reactive-customer-service.local.postman_environment.json` | Local environment — `baseUrl = http://localhost:8080` |
+| `reactive-customer-service.k8s.postman_environment.json` | Kubernetes environment — `baseUrl = http://customer-service.local` |
 
 ---
 
-## Autor
+## What This Project Demonstrates
 
-Proyecto orientado a demostrar habilidades en desarrollo backend reactivo con Java 21 y Spring Boot:
-arquitectura hexagonal, programación reactiva con WebFlux/R2DBC, testing exhaustivo (unitario, integración, property-based, architectural), CI/CD y despliegue en Kubernetes.
+- Reactive programming end-to-end: WebFlux controllers → R2DBC repository → PostgreSQL (no blocking I/O anywhere)
+- Hexagonal architecture with ArchUnit tests enforcing dependency rules at build time
+- Exhaustive test coverage: unit, integration, property-based, and architectural tests
+- Production Kubernetes manifests with health probes, resource limits, and security context
+- Multi-stage Docker build + automated publish to GHCR on every merge to main
+- Per-IP rate limiting at the filter layer, tested in isolation
+
+---
+
+## Related Projects
+
+| Project | Description |
+|---|---|
+| [product-management](https://github.com/apchavez/product-management) | Fullstack Java 21 application with Quarkus backend, React frontend, MongoDB, Redis, and Kubernetes |
+| [clinic-scheduling-azure](https://github.com/apchavez/clinic-scheduling-azure) | Java 21 serverless platform on Azure Functions with Clean Architecture |
