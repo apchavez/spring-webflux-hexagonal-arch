@@ -1,0 +1,67 @@
+package com.apchavez.customers.application;
+
+import com.apchavez.customers.domain.model.Customer;
+import com.apchavez.customers.domain.service.CustomerDomainService;
+import com.apchavez.customers.infrastructure.config.RequestLoggingFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+@Service
+public class CustomerApplicationService {
+
+    private static final Logger log = LoggerFactory.getLogger(CustomerApplicationService.class);
+
+    private final CustomerDomainService domainService;
+
+    public CustomerApplicationService(CustomerDomainService domainService) {
+        this.domainService = domainService;
+    }
+
+    @Transactional
+    public Mono<Customer> createCustomer(Customer customer) {
+        return Mono.deferContextual(ctx -> {
+            String rid = ctx.getOrDefault(RequestLoggingFilter.REQUEST_ID_CONTEXT_KEY, "-");
+            log.info("[{}] Crear cliente — nombre='{}', apellido='{}'",
+                    rid, customer.nombre(), customer.apellido());
+            return domainService.createCustomer(customer)
+                    .doOnSuccess(saved -> log.info("[{}] Cliente creado — id={}", rid, saved.id()));
+        });
+    }
+
+    public Mono<Customer> findById(Integer id) {
+        return Mono.deferContextual(ctx -> {
+            log.debug("[{}] Buscar cliente — id={}",
+                    ctx.getOrDefault(RequestLoggingFilter.REQUEST_ID_CONTEXT_KEY, "-"), id);
+            return domainService.findById(id);
+        });
+    }
+
+    public Flux<Customer> listActiveCustomers() {
+        log.debug("Listar clientes activos");
+        return domainService.listActiveCustomers();
+    }
+
+    @Transactional
+    public Mono<Customer> updateCustomer(Integer id, Customer updatedData) {
+        return Mono.deferContextual(ctx -> {
+            String rid = ctx.getOrDefault(RequestLoggingFilter.REQUEST_ID_CONTEXT_KEY, "-");
+            log.info("[{}] Actualizar cliente — id={}", rid, id);
+            return domainService.updateCustomer(id, updatedData)
+                    .doOnSuccess(updated -> log.info("[{}] Cliente actualizado — id={}", rid, updated.id()));
+        });
+    }
+
+    @Transactional
+    public Mono<Void> deleteCustomer(Integer id) {
+        return Mono.deferContextual(ctx -> {
+            String rid = ctx.getOrDefault(RequestLoggingFilter.REQUEST_ID_CONTEXT_KEY, "-");
+            log.info("[{}] Eliminar cliente — id={}", rid, id);
+            return domainService.deleteCustomer(id)
+                    .doOnSuccess(v -> log.info("[{}] Cliente eliminado — id={}", rid, id));
+        });
+    }
+}

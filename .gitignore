@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Java
+*.class
+out/
+
+# IDEs
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+.factorypath
+.springBeans
+.sts4-cache/
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# jqwik
+.jqwik-database
+
+# Logs
+*.log
+
+# Env files
+.env
