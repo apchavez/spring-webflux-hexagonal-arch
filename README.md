@@ -1,4 +1,7 @@
 ﻿[![CI](https://github.com/apchavez/spring-webflux-hexagonal-arch/actions/workflows/ci.yml/badge.svg)](https://github.com/apchavez/spring-webflux-hexagonal-arch/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-webflux-hexagonal-arch&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-webflux-hexagonal-arch)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-webflux-hexagonal-arch&metric=coverage)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-webflux-hexagonal-arch)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-webflux-hexagonal-arch&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-webflux-hexagonal-arch)
 
 # Reactive Customer Service API
 
