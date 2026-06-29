@@ -1,11 +1,16 @@
 # Gradle
 .gradle/
 build/
-!gradle/wrapper/gradle-wrapper.jar
+!api/gradle/wrapper/gradle-wrapper.jar
 
 # Java
 *.class
 out/
+
+# Node / Angular
+web/node_modules/
+web/dist/
+web/.angular/
 
 # IDEs
 .idea/
@@ -32,3 +37,5 @@ Thumbs.db
 
 # Env files
 .env
+.env.*
+!.env.example

@@ -8,16 +8,14 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
 
-  test:
-    name: Tests y cobertura
+  test-api:
+    name: API — Tests y cobertura
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configurar Java 21 (temurin)
         uses: actions/setup-java@v4
@@ -27,44 +25,74 @@ jobs:
           cache: gradle
 
       - name: Dar permisos a gradlew
-        run: chmod +x gradlew
+        run: chmod +x api/gradlew
+        working-directory: .
 
       - name: Compilar proyecto
         run: ./gradlew build -x test --no-daemon
+        working-directory: api
 
       - name: Ejecutar pruebas
         run: ./gradlew test --no-daemon
+        working-directory: api
         env:
           SPRING_PROFILES_ACTIVE: dev
 
       - name: Generar reporte JaCoCo
         if: always()
         run: ./gradlew jacocoTestReport --no-daemon
+        working-directory: api
 
       - name: Verificar cobertura mínima (80 %)
         run: ./gradlew jacocoTestCoverageVerification --no-daemon
+        working-directory: api
 
       - name: Publicar reporte JaCoCo
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: build/reports/jacoco/test/html/
+          path: api/build/reports/jacoco/test/html/
           retention-days: 30
 
       - name: SonarCloud analysis
         if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.SONAR_ORGANIZATION != ''
-        run: ./gradlew sonar --no-daemon -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }} -Dsonar.projectKey=apchavez_spring-webflux-hexagonal-arch
+        run: ./gradlew sonar --no-daemon -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }} -Dsonar.projectKey=apchavez_spring-angular-fullstack-k8s
+        working-directory: api
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+
+  test-web:
+    name: Web — Tests Angular
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+        working-directory: web
+
+      - name: Ejecutar pruebas
+        run: npm test -- --watch=false
+        working-directory: web
+
+      - name: Build de producción
+        run: npm run build
+        working-directory: web
 
   k8s-validate:
     name: Validar manifests k8s
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Instalar kubeconform
         run: |
@@ -74,19 +102,18 @@ jobs:
           sudo mv /tmp/kubeconform /usr/local/bin/
 
       - name: Validar manifests k8s
-        run: kubeconform -strict -summary k8s/
+        run: kubeconform -strict -summary api/k8s/
 
-  docker:
-    name: Build y publicar imagen Docker
+  docker-api:
+    name: Docker — API
     runs-on: ubuntu-latest
-    needs: test
+    needs: test-api
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -98,19 +125,59 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extraer metadata de la imagen
+      - name: Extraer metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-api
           tags: |
             type=sha,prefix=sha-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Construir y publicar imagen
+      - name: Construir y publicar imagen API
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker-web:
+    name: Docker — Web
+    runs-on: ubuntu-latest
+    needs: test-web
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login en GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extraer metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-web
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Construir y publicar imagen Web
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

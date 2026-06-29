@@ -1,15 +1,29 @@
-﻿[![CI](https://github.com/apchavez/spring-webflux-hexagonal-arch/actions/workflows/ci.yml/badge.svg)](https://github.com/apchavez/spring-webflux-hexagonal-arch/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-webflux-hexagonal-arch&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-webflux-hexagonal-arch)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-webflux-hexagonal-arch&metric=coverage)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-webflux-hexagonal-arch)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-webflux-hexagonal-arch&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-webflux-hexagonal-arch)
+[![CI](https://github.com/apchavez/spring-angular-fullstack-k8s/actions/workflows/ci.yml/badge.svg)](https://github.com/apchavez/spring-angular-fullstack-k8s/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-angular-fullstack-k8s&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-angular-fullstack-k8s)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-angular-fullstack-k8s&metric=coverage)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-angular-fullstack-k8s)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=apchavez_spring-angular-fullstack-k8s&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=apchavez_spring-angular-fullstack-k8s)
 
-# Reactive Customer Service API
+# Spring Angular Fullstack K8s
 
-Reactive REST API built with **Spring Boot WebFlux** for full CRUD customer management, following **Hexagonal Architecture (Ports & Adapters)**.
+Fullstack monorepo with a reactive **Spring Boot WebFlux** backend following **Hexagonal Architecture** and an **Angular 21** frontend with **Angular Material**. Event-driven with **Apache Kafka**, deployed on **Kubernetes**.
+
+---
+
+## Structure
+
+```
+├── api/        Spring Boot WebFlux backend (Java 21, Hexagonal Architecture)
+├── web/        Angular 21 frontend (Angular Material, standalone components)
+├── k8s/        Kubernetes manifests (api + kafka + supporting services)
+├── docker/     PostgreSQL init script
+└── docker-compose.yml
+```
 
 ---
 
 ## Tech Stack
+
+### Backend (`api/`)
 
 | Category | Technology |
 |---|---|
@@ -23,17 +37,25 @@ Reactive REST API built with **Spring Boot WebFlux** for full CRUD customer mana
 | API Docs | Springdoc OpenAPI 2 (Swagger UI) |
 | Build | Gradle 8, JaCoCo (≥ 80% on domain and application) |
 | Code quality | ArchUnit, SonarCloud |
-| Containerization | Docker (multistage build) + docker-compose |
-| Orchestration | Kubernetes (manifests in `k8s/`) |
-| CI/CD | GitHub Actions → ghcr.io |
+
+### Frontend (`web/`)
+
+| Category | Technology |
+|---|---|
+| Framework | Angular 21 (standalone components) |
+| UI Library | Angular Material (M3 theme) |
+| HTTP | Angular HttpClient + RxJS |
+| Forms | Angular Reactive Forms |
+| Tests | Vitest + Angular TestBed |
+| Build | Angular CLI, Docker multi-stage (nginx) |
 
 ---
 
-## Architecture
+## Architecture (Backend)
 
 ```mermaid
 flowchart LR
-    Client([HTTP Client]) --> Controller[CustomerController\nREST Adapter]
+    AngularClient([Angular Client]) --> Controller[CustomerController\nREST Adapter]
     Controller --> App[CustomerApplicationService\nApplication Layer]
     App --> Domain[CustomerDomainService\nDomain Layer]
     App --> EventPort[CustomerEventPublisherPort\nOutput Port]
@@ -44,10 +66,8 @@ flowchart LR
     Kafka --> Topic[[Kafka\ncustomer-events]]
 ```
 
-Hexagonal (Ports & Adapters) with three well-defined layers:
-
 ```
-src/main/java/com/apchavez/customers
+api/src/main/java/com/apchavez/customers
 ├── domain
 │   ├── model          Customer (record with invariants), CustomerState
 │   ├── exception      Typed domain exceptions
@@ -71,26 +91,29 @@ The domain has no knowledge of outer layers. Verified automatically by `Architec
 
 ## Getting Started
 
-### Local (H2 in-memory)
+### Run everything with Docker Compose
 
 ```bash
-./gradlew bootRun
-```
-
-- App: `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
-
-### Docker (PostgreSQL)
-
-```bash
-# Optional: customize credentials
-cp .env.example .env
-# edit .env with your values
-
 docker compose up --build
 ```
 
-> The `docker/postgres-init.sql` script initializes the PostgreSQL schema automatically on first startup.
+- **API:** `http://localhost:8080` / Swagger UI: `http://localhost:8080/swagger-ui.html`
+- **Web:** `http://localhost:4200`
+
+### Backend only (H2 in-memory)
+
+```bash
+cd api
+./gradlew bootRun
+```
+
+### Frontend only
+
+```bash
+cd web
+npm install
+npm start
+```
 
 ---
 
@@ -106,37 +129,13 @@ Base path: `/api/v1/customers`
 | `PUT` | `/{id}` | Full update | `200`, `400`, `404`, `422` |
 | `DELETE` | `/{id}` | Delete customer | `204`, `404` |
 
-Full interactive documentation (with request/response examples and all error codes) is available in Swagger UI.
-
-### Quick Examples
-
-```bash
-# Create customer
-curl -X POST http://localhost:8080/api/v1/customers \
-  -H "Content-Type: application/json" \
-  -d '{"nombre":"Alex","apellido":"Prieto","estado":"ACTIVE","edad":30}'
-
-# List active
-curl http://localhost:8080/api/v1/customers/active
-
-# Find by ID
-curl http://localhost:8080/api/v1/customers/1
-
-# Update
-curl -X PUT http://localhost:8080/api/v1/customers/1 \
-  -H "Content-Type: application/json" \
-  -d '{"nombre":"Alexander","apellido":"Prieto Chavez","estado":"INACTIVE","edad":31}'
-
-# Delete
-curl -X DELETE http://localhost:8080/api/v1/customers/1
-```
-
 ---
 
 ## Testing
 
+### Backend
 ```bash
-./gradlew test          # runs all tests + JaCoCo
+cd api && ./gradlew test
 ```
 
 | Type | Class | Description |
@@ -147,46 +146,39 @@ curl -X DELETE http://localhost:8080/api/v1/customers/1
 | Application service — unit | `CustomerApplicationServiceTest` | Use case orchestration + event publishing |
 | Persistence adapter — `@DataR2dbcTest` | `CustomerPersistenceAdapterTest` | Persistence port with real H2 |
 | Kafka publisher — unit | `KafkaCustomerEventPublisherTest` | JSON send, Kafka failure resilience, serialization error |
-| REST controller — full integration | `CustomerControllerIntegrationTest` | All endpoints and response codes (`NoOpCustomerEventPublisher`) |
+| REST controller — full integration | `CustomerControllerIntegrationTest` | All endpoints and response codes |
 | Rate limiter — unit | `RateLimitingFilterTest` | Per-IP limit and IP isolation |
 | Actuator probes | `ActuatorHealthTest` | Liveness/Readiness |
 | Hexagonal architecture — ArchUnit | `ArchitectureTest` | 4 dependency rules enforced |
+
+### Frontend
+```bash
+cd web && npm test
+```
+
+| Type | Class | Description |
+|---|---|---|
+| Service unit | `CustomerServiceSpec` | HttpClient calls, request/response mapping |
+| Component unit | `CustomerListComponentSpec` | Table rendering, loading state |
+| Component unit | `CustomerFormComponentSpec` | Form validation, create/edit modes |
 
 ---
 
 ## CI/CD
 
-The GitHub Actions pipeline (`.github/workflows/ci.yml`) runs three jobs on every push:
-
 | Job | Trigger | What it does |
 |---|---|---|
-| `test` | Every push / PR | Compile, run tests, JaCoCo ≥ 80%, SonarQube analysis (if `SONAR_HOST_URL` is configured) |
-| `k8s-validate` | Every push / PR | Validate manifests with **kubeconform** |
-| `docker` | Push to `main` (after `test`) | Build + push to **ghcr.io** with `latest` and `sha-XXXXXXX` tags |
-
-Published image:
-
-```
-ghcr.io/apchavez/spring-webflux-hexagonal-arch:latest
-ghcr.io/apchavez/spring-webflux-hexagonal-arch:sha-abc1234
-```
-
-### SonarQube (optional)
-
-To enable SonarQube analysis in CI, configure in the GitHub repository:
-- **Secret:** `SONAR_TOKEN` — token generated in your SonarQube instance
-- **Variable:** `SONAR_HOST_URL` — instance URL (e.g. `https://sonarcloud.io`)
-
-Locally:
-```bash
-./gradlew sonar -Dsonar.host.url=https://sonarcloud.io -Dsonar.token=YOUR_TOKEN
-```
+| `test-api` | Every push / PR | Compile, test, JaCoCo ≥ 80%, SonarCloud (on main) |
+| `test-web` | Every push / PR | Angular tests + production build |
+| `k8s-validate` | Every push / PR | Validate manifests with kubeconform |
+| `docker-api` | Push to `main` | Build + push `ghcr.io/apchavez/spring-angular-fullstack-k8s-api` |
+| `docker-web` | Push to `main` | Build + push `ghcr.io/apchavez/spring-angular-fullstack-k8s-web` |
 
 ---
 
 ## Kubernetes
 
-The manifests in `k8s/` are production-ready:
+Manifests in `api/k8s/`:
 
 | File | Description |
 |---|---|
@@ -198,46 +190,18 @@ The manifests in `k8s/` are production-ready:
 | `ingress.yaml` | NGINX Ingress at `customer-service.local` |
 | `kafka.yaml` | Single-node Kafka (Bitnami KRaft, no Zookeeper) |
 
-Apply in order:
-
-```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/kafka.yaml
-kubectl apply -f k8s/secret.yaml
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
-kubectl apply -f k8s/ingress.yaml
-```
-
-Kubernetes probes point to Actuator endpoints:
-- **Liveness:** `GET /actuator/health/liveness`
-- **Readiness:** `GET /actuator/health/readiness`
-
-> Update `k8s/secret.yaml` with real credentials before deploying to production.  
-> The Ingress assumes an NGINX Ingress Controller and host `customer-service.local`.
-
----
-
-## Postman
-
-| File | Purpose |
-|---|---|
-| `spring-webflux-hexagonal-arch.postman_collection.json` | Main collection with automatic test scripts |
-| `spring-webflux-hexagonal-arch.local.postman_environment.json` | Local environment — `baseUrl = http://localhost:8080` |
-| `spring-webflux-hexagonal-arch.k8s.postman_environment.json` | Kubernetes environment — `baseUrl = http://customer-service.local` |
-
 ---
 
 ## What This Project Demonstrates
 
-- Reactive programming end-to-end: WebFlux controllers → R2DBC repository → PostgreSQL (no blocking I/O anywhere)
+- Fullstack monorepo: reactive Java backend + Angular SPA sharing the same repo and CI pipeline
+- Reactive programming end-to-end: WebFlux controllers → R2DBC repository → PostgreSQL (no blocking I/O)
 - Hexagonal architecture with ArchUnit tests enforcing dependency rules at build time
-- Event-driven output port: Kafka publishes `customer-events` on create/update/delete; falls back to `NoOpCustomerEventPublisher` when Kafka is not configured (integration tests, local H2 profile)
-- Exhaustive test coverage: unit, integration, property-based, and architectural tests
+- Event-driven output port: Kafka publishes `customer-events` on create/update/delete
+- Angular 21 standalone components with Angular Material (M3), HttpClient, and Reactive Forms
+- Exhaustive test coverage: unit, integration, property-based, architectural (backend) + Vitest (frontend)
 - Production Kubernetes manifests with health probes, resource limits, and security context
-- Multi-stage Docker build + automated publish to GHCR on every merge to main
-- Per-IP rate limiting at the filter layer, tested in isolation
+- Multi-stage Docker builds for both services + automated publish to GHCR on every merge to main
 
 ---
 
@@ -245,5 +209,5 @@ Kubernetes probes point to Actuator endpoints:
 
 | Project | Description |
 |---|---|
-| [quarkus-react-fullstack-k8s](https://github.com/apchavez/quarkus-react-fullstack-k8s) | Fullstack Java 21 application with Quarkus backend, React frontend, MongoDB, Redis, and Kubernetes |
-| [clean-arch-azure-functions-java](https://github.com/apchavez/clean-arch-azure-functions-java) | Java 21 serverless platform on Azure Functions with Clean Architecture |
+| [quarkus-react-fullstack-k8s](https://github.com/apchavez/quarkus-react-fullstack-k8s) | Fullstack with Quarkus backend, React frontend, MongoDB, Redis, and Kubernetes |
+| [clean-arch-azure-functions-java](https://github.com/apchavez/clean-arch-azure-functions-java) | Java 21 serverless on Azure Functions with Clean Architecture |
