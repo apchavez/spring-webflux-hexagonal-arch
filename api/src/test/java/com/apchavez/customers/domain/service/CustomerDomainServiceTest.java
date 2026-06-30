@@ -75,14 +75,14 @@ class CustomerDomainServiceTest {
     void listActiveCustomers_shouldDelegateToRepositoryPort() {
         Customer active1 = new Customer(1, "Carlos", "Lopez", CustomerState.ACTIVE, 22);
         Customer active2 = new Customer(3, "Ana", "Diaz", CustomerState.ACTIVE, 30);
-        when(repositoryPort.findAllActive()).thenReturn(Flux.just(active1, active2));
+        when(repositoryPort.findAllActive(0, 10)).thenReturn(Flux.just(active1, active2));
 
-        StepVerifier.create(domainService.listActiveCustomers())
+        StepVerifier.create(domainService.listActiveCustomers(0, 10))
                 .expectNext(active1)
                 .expectNext(active2)
                 .verifyComplete();
 
-        verify(repositoryPort).findAllActive();
+        verify(repositoryPort).findAllActive(0, 10);
     }
 
     // ── updateCustomer ───────────────────────────────────────────────────────

@@ -1,6 +1,11 @@
 spring:
   application:
     name: customer-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: classpath:certs/public.pem
 
 management:
   endpoints:
@@ -31,13 +36,6 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-
-spring:
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          public-key-location: classpath:certs/public.pem
 
 jwt:
   private-key-location: classpath:certs/private.pem

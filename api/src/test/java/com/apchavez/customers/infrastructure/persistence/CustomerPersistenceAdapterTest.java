@@ -98,7 +98,7 @@ class CustomerPersistenceAdapterTest {
         r2dbcRepository.save(new CustomerEntity(null, "Maria", "Gomez", "INACTIVE", 20)).block();
         r2dbcRepository.save(new CustomerEntity(null, "Ana", "Diaz", "ACTIVE", 30)).block();
 
-        StepVerifier.create(adapter.findAllActive())
+        StepVerifier.create(adapter.findAllActive(0, 10))
                 .assertNext(c -> assertThat(c.estado()).isEqualTo(CustomerState.ACTIVE))
                 .assertNext(c -> assertThat(c.estado()).isEqualTo(CustomerState.ACTIVE))
                 .verifyComplete();
@@ -108,7 +108,7 @@ class CustomerPersistenceAdapterTest {
     void findAllActive_shouldReturnEmpty_whenNoActiveCustomers() {
         r2dbcRepository.save(new CustomerEntity(null, "Maria", "Gomez", "INACTIVE", 20)).block();
 
-        StepVerifier.create(adapter.findAllActive())
+        StepVerifier.create(adapter.findAllActive(0, 10))
                 .verifyComplete();
     }
 

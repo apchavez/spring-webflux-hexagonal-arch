@@ -119,11 +119,13 @@ class CustomerControllerIntegrationTest {
                 .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isOk()
-                .expectBodyList(CustomerResponseDTO.class)
-                .value(list -> {
-                    assertThat(list).hasSize(2);
-                    assertThat(list).allMatch(c -> "ACTIVE".equals(c.estado()));
-                });
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(2)
+                .jsonPath("$.content[0].estado").isEqualTo("ACTIVE")
+                .jsonPath("$.content[1].estado").isEqualTo("ACTIVE")
+                .jsonPath("$.page").isEqualTo(0)
+                .jsonPath("$.size").isEqualTo(20)
+                .jsonPath("$.totalElements").isEqualTo(2);
     }
 
     @Test
@@ -135,8 +137,9 @@ class CustomerControllerIntegrationTest {
                 .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isOk()
-                .expectBodyList(CustomerResponseDTO.class)
-                .hasSize(0);
+                .expectBody()
+                .jsonPath("$.content.length()").isEqualTo(0)
+                .jsonPath("$.totalElements").isEqualTo(0);
     }
 
     @Test
