@@ -12,6 +12,9 @@ spring:
       host: localhost
       port: 6379
 
+jwt:
+  private-key-location: classpath:certs/private.pem
+
 management:
   health:
     redis:

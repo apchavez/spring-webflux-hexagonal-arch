@@ -28,7 +28,21 @@ spec:
             - name: KAFKA_CFG_ADVERTISED_LISTENERS
               value: PLAINTEXT://kafka.customer-service.svc.cluster.local:9092
             - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
-              value: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+              value: CONTROLLER:PLAINTEXT,PLAINTEXT:SASL_PLAINTEXT
+            - name: KAFKA_CFG_SASL_ENABLED_MECHANISMS
+              value: SCRAM-SHA-256
+            - name: KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL
+              value: PLAIN
+            - name: KAFKA_CLIENT_USERS
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-credentials
+                  key: kafka-user
+            - name: KAFKA_CLIENT_PASSWORDS
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-credentials
+                  key: kafka-password
             - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
               value: CONTROLLER
             - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS

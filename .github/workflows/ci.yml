@@ -65,9 +65,23 @@ jobs:
           path: api/build/reports/jacoco/test/html/
           retention-days: 30
 
-      - name: SonarCloud analysis
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.SONAR_ORGANIZATION != ''
+      - name: SonarCloud analysis (push)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SONAR_ORGANIZATION != ''
         run: ./gradlew sonar --no-daemon -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }} -Dsonar.projectKey=apchavez_spring-angular-fullstack-k8s
+        working-directory: api
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+
+      - name: SonarCloud analysis (pull_request)
+        if: github.event_name == 'pull_request' && vars.SONAR_ORGANIZATION != ''
+        run: >
+          ./gradlew sonar --no-daemon
+          -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+          -Dsonar.projectKey=apchavez_spring-angular-fullstack-k8s
+          -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+          -Dsonar.pullrequest.branch=${{ github.head_ref }}
+          -Dsonar.pullrequest.base=${{ github.base_ref }}
         working-directory: api
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -90,9 +104,17 @@ jobs:
         run: npm ci
         working-directory: web
 
-      - name: Ejecutar pruebas
-        run: npm test -- --watch=false
+      - name: Ejecutar pruebas con cobertura
+        run: npm run test:coverage
         working-directory: web
+
+      - name: Publicar reporte de cobertura Angular
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-coverage-report
+          path: web/coverage/
+          retention-days: 30
 
       - name: Build de producción
         run: npm run build
@@ -120,7 +142,7 @@ jobs:
     needs: test-api
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - uses: actions/checkout@v4
@@ -153,6 +175,16 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Pinear tag sha en deployment.yaml
+        run: |
+          SHA_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
+          sed -i "s|ghcr.io/apchavez/spring-angular-fullstack-k8s-api:.*|ghcr.io/apchavez/spring-angular-fullstack-k8s-api:${SHA_TAG}|" api/k8s/deployment.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add api/k8s/deployment.yaml
+          git diff --cached --quiet || git commit -m "ci: pin API image to ${SHA_TAG} [skip ci]"
+          git push
 
   docker-web:
     name: Docker — Web

@@ -33,7 +33,7 @@ Fullstack monorepo with a reactive **Spring Boot WebFlux** backend following **H
 | Database | H2 (dev profile) / PostgreSQL 16 (prod profile) |
 | Cache | Redis (reactive, rate limiting) |
 | Messaging | Apache Kafka (KRaft, topic `customer-events`) |
-| Security | Spring Security (headers, CORS, rate limiting) |
+| Security | Spring Security + JWT RS256 (oauth2-resource-server), CORS, rate limiting |
 | Observability | Spring Boot Actuator, Micrometer + Prometheus, OpenTelemetry (OTLP), SLF4J + Logback, X-Request-Id |
 | API Docs | Springdoc OpenAPI 2 (Swagger UI) |
 | Build | Gradle 8, JaCoCo (≥ 80% on domain and application) |
@@ -230,6 +230,33 @@ Requires [Prometheus Operator](https://github.com/prometheus-operator/prometheus
 ```bash
 kubectl port-forward svc/grafana 3000:3000 -n customer-service
 ```
+
+---
+
+## Security
+
+The API is secured with **JWT RS256** tokens. A local RSA 2048 key pair (stored in `api/src/main/resources/certs/`) is used to sign and verify tokens.
+
+| Route | Method | Required role |
+|---|---|---|
+| `/api/v1/**` | `GET` | Any authenticated user (`USER` or `ADMIN`) |
+| `/api/v1/**` | `POST`, `PUT`, `DELETE` | `ROLE_ADMIN` only |
+| `/actuator/**`, `/swagger-ui/**`, `/v3/api-docs/**` | Any | Public (no token needed) |
+
+Token generation is handled by `JwtService` (available in the Spring context). For local testing, generate a token with:
+
+```java
+// inject JwtService and call:
+String adminToken = jwtService.generateToken("alice", "ADMIN");
+String userToken  = jwtService.generateToken("bob",   "USER");
+```
+
+Pass the token in the `Authorization` header:
+```
+Authorization: Bearer <token>
+```
+
+The Postman collection uses a `{{adminToken}}` environment variable — set it in the active environment before running write requests.
 
 ---
 

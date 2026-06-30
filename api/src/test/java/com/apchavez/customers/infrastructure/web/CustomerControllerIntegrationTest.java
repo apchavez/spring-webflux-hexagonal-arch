@@ -1,11 +1,11 @@
 package com.apchavez.customers.infrastructure.web;
 
+import com.apchavez.customers.infrastructure.config.JwtService;
 import com.apchavez.customers.infrastructure.persistence.CustomerEntity;
 import com.apchavez.customers.infrastructure.persistence.CustomerR2dbcRepository;
 import com.apchavez.customers.infrastructure.web.dto.CustomerRequestDTO;
 import com.apchavez.customers.infrastructure.web.dto.CustomerResponseDTO;
 import com.apchavez.customers.infrastructure.web.dto.CustomerUpdateRequestDTO;
-import com.apchavez.customers.infrastructure.web.dto.PageResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,9 +29,17 @@ class CustomerControllerIntegrationTest {
     @Autowired
     private CustomerR2dbcRepository r2dbcRepository;
 
+    @Autowired
+    private JwtService jwtService;
+
+    private String adminToken;
+    private String userToken;
+
     @BeforeEach
-    void clearDatabase() {
+    void setUp() throws Exception {
         r2dbcRepository.deleteAll().block();
+        adminToken = jwtService.generateToken("test-admin", "ADMIN");
+        userToken = jwtService.generateToken("test-user", "USER");
     }
 
     // ── POST /api/v1/customers ───────────────────────────────────────────────
@@ -42,6 +50,7 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.post()
                 .uri("/api/v1/customers")
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -62,6 +71,7 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.post()
                 .uri("/api/v1/customers")
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -71,10 +81,34 @@ class CustomerControllerIntegrationTest {
                 .jsonPath("$.errores").isArray();
     }
 
+    @Test
+    void createCustomer_shouldReturn401_whenNoToken() {
+        CustomerRequestDTO request = new CustomerRequestDTO("Alex", "Prieto", "ACTIVE", 30);
+
+        webTestClient.post()
+                .uri("/api/v1/customers")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void createCustomer_shouldReturn403_whenUserRole() {
+        CustomerRequestDTO request = new CustomerRequestDTO("Alex", "Prieto", "ACTIVE", 30);
+
+        webTestClient.post()
+                .uri("/api/v1/customers")
+                .header("Authorization", "Bearer " + userToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
     // ── GET /api/v1/customers/active ─────────────────────────────────────────
 
     @Test
-    @SuppressWarnings("unchecked")
     void listActiveCustomers_shouldReturn200_withOnlyActiveCustomers() {
         r2dbcRepository.save(new CustomerEntity(null, "Carlos", "Lopez", "ACTIVE", 22)).block();
         r2dbcRepository.save(new CustomerEntity(null, "Maria", "Gomez", "INACTIVE", 20)).block();
@@ -82,48 +116,35 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.get()
                 .uri("/api/v1/customers/active")
+                .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody(PageResponse.class)
-                .value(page -> {
-                    assertThat(page.totalElements()).isEqualTo(2L);
-                    assertThat(page.content()).hasSize(2);
-                    assertThat(page.page()).isEqualTo(0);
-                    assertThat(page.size()).isEqualTo(20);
+                .expectBodyList(CustomerResponseDTO.class)
+                .value(list -> {
+                    assertThat(list).hasSize(2);
+                    assertThat(list).allMatch(c -> "ACTIVE".equals(c.estado()));
                 });
     }
 
     @Test
-    void listActiveCustomers_shouldReturn200_withEmptyPage_whenNoActiveCustomers() {
+    void listActiveCustomers_shouldReturn200_withEmptyArray_whenNoActiveCustomers() {
         r2dbcRepository.save(new CustomerEntity(null, "Maria", "Gomez", "INACTIVE", 20)).block();
 
         webTestClient.get()
                 .uri("/api/v1/customers/active")
+                .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.totalElements").isEqualTo(0)
-                .jsonPath("$.content").isArray();
+                .expectBodyList(CustomerResponseDTO.class)
+                .hasSize(0);
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void listActiveCustomers_shouldReturn200_withPaginatedResults() {
-        for (int i = 1; i <= 5; i++) {
-            r2dbcRepository.save(new CustomerEntity(null, "Customer" + i, "Last" + i, "ACTIVE", 20 + i)).block();
-        }
-
+    void listActiveCustomers_shouldReturn401_whenNoToken() {
         webTestClient.get()
-                .uri("/api/v1/customers/active?page=0&size=2")
+                .uri("/api/v1/customers/active")
                 .exchange()
-                .expectStatus().isOk()
-                .expectBody(PageResponse.class)
-                .value(page -> {
-                    assertThat(page.totalElements()).isEqualTo(5L);
-                    assertThat(page.content()).hasSize(2);
-                    assertThat(page.totalPages()).isEqualTo(3);
-                    assertThat(page.last()).isFalse();
-                });
+                .expectStatus().isUnauthorized();
     }
 
     // ── GET /api/v1/customers/{id} ───────────────────────────────────────────
@@ -136,6 +157,7 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.get()
                 .uri("/api/v1/customers/{id}", saved.getId())
+                .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(CustomerResponseDTO.class)
@@ -149,6 +171,7 @@ class CustomerControllerIntegrationTest {
     void findById_shouldReturn404_whenCustomerNotFound() {
         webTestClient.get()
                 .uri("/api/v1/customers/{id}", 9999)
+                .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
@@ -160,6 +183,7 @@ class CustomerControllerIntegrationTest {
     void findById_shouldReturn400_whenIdIsNegative() {
         webTestClient.get()
                 .uri("/api/v1/customers/{id}", -1)
+                .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isBadRequest();
     }
@@ -168,6 +192,7 @@ class CustomerControllerIntegrationTest {
     void findById_shouldReturn400_whenIdIsZero() {
         webTestClient.get()
                 .uri("/api/v1/customers/{id}", 0)
+                .header("Authorization", "Bearer " + userToken)
                 .exchange()
                 .expectStatus().isBadRequest();
     }
@@ -185,6 +210,7 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.put()
                 .uri("/api/v1/customers/{id}", saved.getId())
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -206,6 +232,7 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.put()
                 .uri("/api/v1/customers/{id}", 9999)
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -221,6 +248,7 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.put()
                 .uri("/api/v1/customers/{id}", 1)
+                .header("Authorization", "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -240,11 +268,13 @@ class CustomerControllerIntegrationTest {
 
         webTestClient.delete()
                 .uri("/api/v1/customers/{id}", saved.getId())
+                .header("Authorization", "Bearer " + adminToken)
                 .exchange()
                 .expectStatus().isEqualTo(HttpStatus.NO_CONTENT);
 
         webTestClient.get()
                 .uri("/api/v1/customers/{id}", saved.getId())
+                .header("Authorization", "Bearer " + adminToken)
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -253,6 +283,7 @@ class CustomerControllerIntegrationTest {
     void deleteCustomer_shouldReturn404_whenNotFound() {
         webTestClient.delete()
                 .uri("/api/v1/customers/{id}", 9999)
+                .header("Authorization", "Bearer " + adminToken)
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()

@@ -5,12 +5,28 @@
     "description": "Colección para probar la API REST reactiva de Customer Service (Spring Boot WebFlux). Base path: /api/v1/customers\n\nUsar junto con uno de los environments incluidos en postman/:\n- spring-webflux-hexagonal-arch.local.postman_environment.json  → local (H2)\n- spring-webflux-hexagonal-arch.k8s.postman_environment.json    → Kubernetes (PostgreSQL)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{adminToken}}",
+        "type": "string"
+      }
+    ]
+  },
   "variable": [
     {
       "key": "customerId",
       "value": "",
       "type": "string",
       "description": "Se establece automáticamente al crear un cliente (POST sin id explícito)"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT RS256 con ROLE_ADMIN. Generar con JwtService.generateToken(\"test\", \"ADMIN\") y pegar aquí o en el environment."
     }
   ],
   "item": [

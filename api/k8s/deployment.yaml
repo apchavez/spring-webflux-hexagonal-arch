@@ -30,6 +30,8 @@ spec:
         runAsGroup: 1001
       containers:
         - name: customer-service
+          # Tag is updated automatically by the docker-api CI job after each push to main.
+          # For manual deploys use: kubectl set image deployment/customer-service customer-service=ghcr.io/apchavez/spring-angular-fullstack-k8s-api:sha-<SHA>
           image: ghcr.io/apchavez/spring-angular-fullstack-k8s-api:latest
           imagePullPolicy: Always
           ports:
@@ -63,6 +65,12 @@ spec:
             periodSeconds: 5
             failureThreshold: 3
             timeoutSeconds: 3
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            failureThreshold: 30
+            periodSeconds: 10
           volumeMounts:
             - name: tmp-dir
               mountPath: /tmp
